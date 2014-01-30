@@ -1,0 +1,6 @@
+
+2) install flask, flash sqlalchemy, sqlite3, gevent, redis
+
+3) run redis
+
+4) run ui.py

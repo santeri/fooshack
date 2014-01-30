@@ -1,0 +1,37 @@
+#team1 {
+    background-color: #fc5;
+    float: left;
+    width: 50%;
+}
+
+#metanav {
+
+}
+
+h1 {
+    font-family: sans-serif;
+    text-align: center;
+    background-color: cornflowerblue;
+}
+h2 {
+    font-family: sans-serif;
+}
+
+#team2 {
+    background-color: #000000;
+    color: #ffffff;;
+    float: left;
+    width: 50%;
+}
+
+body            { font-family: sans-serif; background: #eee; }
+a, h1, h2       { color: #377ba8; }
+h1, h2          { font-family: 'Georgia', serif; margin: 0; }
+h1              { border-bottom: 2px solid #eee; }
+h2              { font-size: 1.2em; }
+
+.metanav        { text-align: left; font-size: 0.8em; padding: 0.3em;
+                  margin-bottom: 1em; background: #fafafa; }
+.flash          { background: #cee5F5; padding: 0.5em;
+                  border: 1px solid #aacbe2; }
+.error          { background: #f0d6d6; padding: 0.5em; }

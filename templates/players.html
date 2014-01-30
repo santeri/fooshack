@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block body %}
+    <form action="{{ url_for('player_add') }}" method=post class=add-player>
+      <dl>
+        <dt>name:</dt>
+        <dd><input type="text" size="30" name="name"/></dd>
+        <dt>tag:</dt>
+        <dd><input type="text" size="30" name="tag"/></dd>
+        <dt>uri:</dt>
+        <dd><input type="text" size="30" name="track"/></dd>
+        <dd><input type="submit" value="add"></dd>
+      </dl>
+    </form>
+
+    <h1>Players</h1>
+    {% if players %}
+        <table>
+          {% for player in players %}
+            <tr><th>name</th></tr>
+            <tr><td><a href="{{ url_for('player', id=player.id) }}">{{player.name}}</a></td></tr>
+          {% endfor %}
+        </table>
+    {% else %}
+        nothing here
+    {% endif %}
+{% endblock %}

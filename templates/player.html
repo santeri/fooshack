@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if player %}
+  <h1>Hello {{ player.name }}!</h1>
+{% endif %}
+<form action="{{ url_for('player_update') }}" method="post" class="update-player">
+  <input type="hidden" name="id" value="{{player.id}}"/>
+  <ul>
+    <li>name: <input type="text" size="30" name="name" value="{{player.name}}"/></li>
+    <li>tag:  <input type="text" size="6" name="tag"   value="{{player.tag}}"/></li>
+    <li>uri:  <input type="text" size="30" name="track"  value="{{player.track}}"/></li>
+    <li><input type="submit" value="update"></li>
+  </ul>
+</form>
+{% endblock %}
