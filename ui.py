@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import gevent
 import gevent.wsgi
 from gevent import monkey;
@@ -24,12 +26,7 @@ app.config.from_object(__name__)
 db = SQLAlchemy(app)
 red = redis.StrictRedis()
 
-current_players = [0, 0, 0, 0]
-team_a = None
-team_b = None
-match = None
-goals = []
-
+current_match = None
 
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,7 +38,7 @@ class Player(db.Model):
         self.tag = tag
 
     def __repr__(self):
-        return 'Player %d name %s tag %s' % (self.id, self.name, self.tag)
+        return 'Player id %d name %s tag %s' % (self.id, self.name, self.tag)
 
     def update(self, form):
         self.name = request.form['name']
@@ -58,11 +55,11 @@ class Player(db.Model):
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    player_a_id = db.Column(db.Integer, db.ForeignKey('player.id'))
+    player_a_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
     player_a = db.relationship("Player",
                                foreign_keys='Team.player_a_id',
                                backref=db.backref('Player A', lazy='dynamic'))
-    player_b_id = db.Column(db.Integer, db.ForeignKey('player.id'))
+    player_b_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
     player_b = db.relationship("Player",
                                foreign_keys='Team.player_b_id',
                                backref=db.backref('Player B', lazy='dynamic'))
@@ -72,30 +69,44 @@ class Team(db.Model):
         self.player_b = player_b
 
     def __repr__(self):
-        return 'Team %s, %s' % (self.player_a.name, self.player_b.name)
+        return 'Team %s, %s' % (self.player_a, self.player_b)
 
 
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    team_a_id = db.Column(db.Integer, db.ForeignKey('team.id'))
+    team_a_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     team_a = db.relationship("Team",
                              foreign_keys='Match.team_a_id',
                              backref=db.backref('team_a', lazy='dynamic'))
-    team_b_id = db.Column(db.Integer, db.ForeignKey('team.id'))
+    team_b_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     team_b = db.relationship("Team",
                              foreign_keys='Match.team_b_id',
                              backref=db.backref('team_b', lazy='dynamic'))
     goals = db.relationship("Goal", backref=db.backref('goal'))
 
+    def __init__(self, team_a, team_b):
+        self.team_a = team_a
+        self.team_b = team_b
+
+    def __repr__(self):
+        return "match with teams %s - %s, %d goals" % (
+            self.team_a, self.team_b, len(self.goals))
 
 class Goal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     team = db.relationship("Team", backref=db.backref('team', lazy='dynamic'))
-    match_id = db.Column(db.Integer, db.ForeignKey('match.id'))
+    match_id = db.Column(db.Integer, db.ForeignKey('match.id'), nullable=False)
     match = db.relationship("Match", backref=db.backref('match', lazy='dynamic'))
     speed = db.Column(db.Float)
 
+    def __init__(self, match, team, speed):
+        self.match = match
+        self.team = team
+        self.speed = speed
+    def __repr__(self):
+        return 'goal in match %d by team %s, speed %s' %(
+            self.match_id, self.team_id, self.speed)
 
 @app.route("/")
 def index():
@@ -141,6 +152,49 @@ def player_update():
     return redirect(url_for('players'))
 
 
+@app.route("/register_goal", methods=['POST'])
+def register_goal():
+    global current_match
+
+    cp = map(db.session.query(Player).get, request.json['players'])
+    team_a = Team.query.filter_by(player_a=cp[0],player_b=cp[1]).first()
+    team_b = Team.query.filter_by(player_a=cp[2],player_b=cp[3]).first()
+    if not team_a:
+        team_a = Team(cp[0], cp[1])
+    if not team_b:
+        team_b = Team(cp[2], cp[3])
+
+    if not current_match:
+        current_match = Match(team_a, team_b)
+        db.session.flush()
+        db.session.refresh(current_match)
+        
+    goal = Goal(current_match, 
+                team_a if request.json['team'] == 1 else team_b,
+                int(request.json['spd']))
+    db.session.flush()
+
+    team_a_goals = Goal.query.filter_by(team=team_a,match=current_match).all()
+    print 'team_a goals ',len(team_a_goals)
+    for goal in team_a_goals:
+        print '\t',goal
+
+    team_b_goals = Goal.query.filter_by(team=team_b,match=current_match).all()
+    print 'team_b goals ',len(team_b_goals)
+    for goal in team_b_goals:
+        print '\t',goal
+
+    if len(team_a_goals) == 10:
+        print 'team a wins!'
+        current_match = None
+    if len(team_b_goals) == 10:
+        print 'team b wins!'
+        current_match = None
+
+    db.session.commit()
+    return json.dumps({"data": {
+                "current_match":current_match.id if current_match else 0}})
+
 @app.route("/register_player/<position>/<tag>")
 def json_player(position, tag):
     print "registering player %s at position %s" % (tag, position)
@@ -150,7 +204,6 @@ def json_player(position, tag):
         db.session.add(p)
         db.session.commit()
         db.session.refresh(p)
-    current_players[int(position)-1] = p
     return Response(p.json(), mimetype="application/json")
 
 
@@ -158,14 +211,19 @@ def event_stream():
     pubsub = red.pubsub()
     pubsub.subscribe('fooshack')
     for message in pubsub.listen():
-        if not type(message['data'] == str):
-            continue
-        yield 'data: %s\n\n' % message['data']
+        if not type(message['data']) == str:
+	    continue
+        
+        d = 'data: %s\n\n' % message['data']
+	print d
+	yield d
 
 
 @app.route('/event-source')
 def event_source():
-    return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
+    print 'event'
+    return Response(stream_with_context(event_stream()), 
+                    mimetype='text/event-stream')
 
 
 @app.route("/match/<id>")

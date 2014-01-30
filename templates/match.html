@@ -37,27 +37,60 @@
 </div>
 
 <script type="text/javascript">
+    var players = [0,0,0,0];
+
+function clear_player(pos) {
+    $('#player'+pos + ' #id').text("");
+    $('#player'+pos + ' #name').text("");
+    $('#player'+pos + ' #tag').text("");
+    $('#player'+pos + ' #track').text("");
+}
+function goal(team, spd) {
+    var goals = $('#team'+team+' #goals');
+    var score = $('#team'+team+' #score');
+    $.ajax({
+	type: "POST",
+	contentType: "application/json; charset=utf-8",
+	url: "/register_goal",
+	data: JSON.stringify({ "players": players, "team": team, "spd": spd }),
+	success: function (data) {
+	    console.log(data);
+	    if (data.data.current_match != 0) {
+		goals.append('<li>'+spd+'</li>');
+		score.text(goals.children().length);
+	    } else {
+		$('#team1 #goals').empty();
+		$('#team2 #goals').empty();
+		$('#team1 #score').text(0);
+		$('#team2 #score').text(0);
+		players = [0,0,0,0];
+		clear_player(1);
+		clear_player(2);
+		clear_player(3);
+		clear_player(4);
+	    }
+	},
+	dataType: "json"
+    });
+}
+function player(tag, pos) {
+    $.getJSON('/register_player/' + pos + '/' + tag, function(data) {
+        $('#player'+pos + ' #id').text(data.player.id);
+        $('#player'+pos + ' #name').text(data.player.name);
+        $('#player'+pos + ' #tag').text(data.player.tag);
+        $('#player'+pos + ' #track').text(data.player.track);
+	players[pos-1] = data.player.id;
+    });
+ }
 $(document).ready(function() {
     var source = new EventSource('{{url_for("event_source")}}');
     source.onmessage = function(event) {
         var ev = $.parseJSON(event.data);
         if (ev.player) {
-            var tag = ev.player.tag;
-            var pos = ev.player.position;
-            $.getJSON('/register_player/' + pos + '/' + tag, function(data) {
-                $('#player'+pos + ' #id').text(data.player.id);
-                $('#player'+pos + ' #name').text(data.player.name);
-                $('#player'+pos + ' #tag').text(data.player.tag);
-                $('#player'+pos + ' #track').text(data.player.track);
-                console.log(data)
-            });
-        }
+	    player(ev.player.tag, ev.player.position);
+	}
         if (ev.goal) {
-            var team  = ev.goal.team;
-            var spd   = ev.goal.spd;
-            var goals = $('#team'+team+' #goals');
-            goals.append('<li>'+spd+'</li>');
-            $('#team'+team+' #score').text(goals.children().length);
+	    goal(ev.goal.team, ev.goal.spd);
         }
     }
 });

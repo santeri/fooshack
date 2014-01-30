@@ -1,6 +1,10 @@
 
-2) install flask, flash sqlalchemy, sqlite3, gevent, redis
+1) install flask, flash sqlalchemy, sqlite3, gevent, redis
+apt-get  install redis-server
+pip install gevent flask flask-sqlalchemy redis
 
-3) run redis
+gevent >= 1.0
 
-4) run ui.py
+2) run redis
+
+3) run ui.py
